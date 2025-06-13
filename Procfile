@@ -1,0 +1,1 @@
+worker: python Dos_Satisfaction.py
