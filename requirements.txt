@@ -1,6 +1,6 @@
 pandas
 requests
-python-telegram-bot==20.7
 python-dotenv
 openpyxl
-pyTelegramBotAPI
+pyTelegramBotAPI==4.15.4
+Flask

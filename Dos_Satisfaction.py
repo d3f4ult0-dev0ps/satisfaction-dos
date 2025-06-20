@@ -6,6 +6,8 @@ import random
 import time
 import os
 from dotenv import load_dotenv
+from flask import Flask
+from threading import Thread
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
@@ -22,6 +24,13 @@ df = pd.read_excel("cleaned_data.xlsx")
 log_file = "sent_log.txt"
 names_log_file = "names_only_log.txt"
 stop_requested = False
+
+# Flask app для /ping
+app = Flask(__name__)
+
+@app.route("/ping")
+def ping():
+    return "✅ Bot is alive!", 200
 
 @bot.message_handler(commands=['start'])
 def welcome(message):
@@ -48,13 +57,12 @@ def process_requests(message):
         count = int(message.text)
         sample = df.sample(n=min(count, len(df)))
 
-        # Очищаем старые логи
+        # Очистка логов
         open(log_file, "w", encoding="utf-8").close()
         open(names_log_file, "w", encoding="utf-8").close()
 
         bot.send_message(message.chat.id, f"🚀 Sending {len(sample)} requests...")
 
-        # Кнопка остановки
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add("⛔ Terminate")
         bot.send_message(message.chat.id, "Press ⛔ to stop the process", reply_markup=markup)
@@ -79,11 +87,11 @@ def process_requests(message):
             response = requests.post(form_url, data=form_data)
             status = "✅ Success" if response.status_code in [200, 302] else f"❌ Error {response.status_code}"
 
-            # Лог с полными данными
+            # Полный лог
             with open(log_file, "a", encoding="utf-8") as log:
                 log.write(f"{idx}. {name} | {phone} | {comment}\n")
 
-            # Лог только с именами
+            # Лог с именами
             with open(names_log_file, "a", encoding="utf-8") as name_log:
                 name_log.write(f"{idx}. {name}\n")
 
@@ -93,14 +101,12 @@ def process_requests(message):
             bot.send_message(message.chat.id, f"⏳ Waiting {round(pause, 2)} sec...")
             time.sleep(pause)
 
-        # Отправляем оба лога
         if not stop_requested:
             with open(log_file, "rb") as log:
                 bot.send_document(message.chat.id, log)
             with open(names_log_file, "rb") as log2:
                 bot.send_document(message.chat.id, log2)
 
-        # Кнопка запуска заново
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add("🚀 Send requests")
         bot.send_message(message.chat.id, "✅ Done! Ready for next round.", reply_markup=markup)
@@ -108,4 +114,7 @@ def process_requests(message):
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Error: {e}")
 
-bot.polling()
+# Запуск и Flask, и бота
+if __name__ == "__main__":
+    Thread(target=bot.polling, kwargs={"none_stop": True, "interval": 0}).start()
+    app.run(host="0.0.0.0", port=10000)
