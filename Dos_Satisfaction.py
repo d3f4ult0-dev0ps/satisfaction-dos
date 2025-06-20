@@ -4,78 +4,30 @@ import pandas as pd
 import requests
 import random
 import time
-from os import getenv
+import os
 from dotenv import load_dotenv
+
 load_dotenv()
-
-TOKEN = getenv("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN)
-
 
 form_url = "https://docs.google.com/forms/d/e/1FAIpQLSdv-p1UCSlH0c9RrZRnKzMOmi742qS63lLehLdTaLOF-1r_zg/formResponse"
 teacher = "Sevinch | Integro A"
 
-comments = [
-    "Absolutely wonderful lessons!",
-    "Inspiring teaching style 👏",
-    "Super clear and engaging!",
-    "Top-tier education! ⭐",
-    "Always helpful and kind",
-    "Explains really well!",
-    "Makes everything easier ✨",
-    "Really enjoyed the class",
-    "Very professional teacher",
-    "Would love to learn again!",
-    "Learned a lot 🙌",
-    "Crystal clear explanations!",
-    "Best teacher ever 💯",
-    "Very supportive mentor",
-    "Respect for your work 🙏",
-    "Brilliant sessions!",
-    "Always encouraging 💪",
-    "Best of the bests 🏆",
-    "Interactive and fun class",
-    "Appreciated every lesson!",
-    "Really dedicated teacher 👌",
-    "Knowledge + passion = 🔥",
-    "Clear and effective teaching",
-    "Loved the environment!",
-    "Perfect pace and clarity",
-    "Consistently excellent",
-    "Highly recommended 💫",
-    "Great experience!",
-    "10/10 teacher!",
-    "Made complex things simple 😊",
-    "Excellent communication 🗣️",
-    "Strong teaching method",
-    "Patient and professional",
-    "Always answers questions",
-    "Very responsive 💡",
-    "Much respect 🙏",
-    "True education 💥",
-    "Can’t ask for more!",
-    "Truly thankful 💖",
-    "Respect for her patience 🙌",
-    "On another level!",
-    "Legendary educator 👑",
-    "Focused and clear!",
-    "Absolutely 💎 quality",
-    "Such a warm person 🫶",
-    "Total gamechanger",
-    "Teaching goals 🎯",
-    "Genius-level class",
-    "Will never forget her lessons 💭"
-]
+# Подгружаем комментарии из файла
+with open("new_comments.txt", "r", encoding="utf-8") as f:
+    comments = [line.strip() for line in f if line.strip()]
 
-df = pd.read_excel("data.xlsx")
-
-stop_requested = False  # глобальный флаг остановки
+df = pd.read_excel("cleaned_data.xlsx")
+log_file = "sent_log.txt"
+names_log_file = "names_only_log.txt"
+stop_requested = False
 
 @bot.message_handler(commands=['start'])
 def welcome(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("🚀 Send requests")
-    bot.send_message(message.chat.id, "Hi! 👋, Click the button below to start sending:", reply_markup=markup)
+    bot.send_message(message.chat.id, "Hi! 👋 Click the button below to start sending:", reply_markup=markup)
 
 @bot.message_handler(func=lambda msg: msg.text == "🚀 Send requests")
 def ask_request_amount(message):
@@ -95,38 +47,63 @@ def process_requests(message):
     try:
         count = int(message.text)
         sample = df.sample(n=min(count, len(df)))
+
+        # Очищаем старые логи
+        open(log_file, "w", encoding="utf-8").close()
+        open(names_log_file, "w", encoding="utf-8").close()
+
         bot.send_message(message.chat.id, f"🚀 Sending {len(sample)} requests...")
 
-        # Показываем кнопку "⛔ Остановить"
+        # Кнопка остановки
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add("⛔ Terminate")
-        bot.send_message(message.chat.id, "Press the ⛔ button to stop the process", reply_markup=markup)
+        bot.send_message(message.chat.id, "Press ⛔ to stop the process", reply_markup=markup)
 
-        for _, row in sample.iterrows():
+        for idx, (_, row) in enumerate(sample.iterrows(), start=1):
             if stop_requested:
-                bot.send_message(message.chat.id, "🛑 The process is stopped.")
+                bot.send_message(message.chat.id, "🛑 Sending stopped.")
                 break
 
+            name = row["name"]
+            phone = row["phone"]
+            comment = random.choice(comments)
+
             form_data = {
-                "entry.1767106711": row["name"],
-                "entry.791639384": row["phone"],
-                "entry.10629657": random.choice(comments),
+                "entry.1767106711": name,
+                "entry.791639384": phone,
+                "entry.10629657": comment,
                 "entry.1888807124": teacher,
                 "entry.282949261": "5"
             }
 
             response = requests.post(form_url, data=form_data)
             status = "✅ Success" if response.status_code in [200, 302] else f"❌ Error {response.status_code}"
-            bot.send_message(message.chat.id, f"{status}: {row['name']}")
 
-            pause = random.randint(2, 5)
-            bot.send_message(message.chat.id, f"⏳ Waiting {pause} sec...")
+            # Лог с полными данными
+            with open(log_file, "a", encoding="utf-8") as log:
+                log.write(f"{idx}. {name} | {phone} | {comment}\n")
+
+            # Лог только с именами
+            with open(names_log_file, "a", encoding="utf-8") as name_log:
+                name_log.write(f"{idx}. {name}\n")
+
+            bot.send_message(message.chat.id, f"{status}: {name} — \"{comment}\"")
+
+            pause = random.uniform(0.5, 2.0)
+            bot.send_message(message.chat.id, f"⏳ Waiting {round(pause, 2)} sec...")
             time.sleep(pause)
 
-        # Возврат к обычной клавиатуре
+        # Отправляем оба лога
+        if not stop_requested:
+            with open(log_file, "rb") as log:
+                bot.send_document(message.chat.id, log)
+            with open(names_log_file, "rb") as log2:
+                bot.send_document(message.chat.id, log2)
+
+        # Кнопка запуска заново
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add("🚀 Send requests")
-        bot.send_message(message.chat.id, "✅ Ready for the next launch", reply_markup=markup)
+        bot.send_message(message.chat.id, "✅ Done! Ready for next round.", reply_markup=markup)
 
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Error: {e}")
