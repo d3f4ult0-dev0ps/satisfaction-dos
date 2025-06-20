@@ -9,11 +9,12 @@ from dotenv import load_dotenv
 from flask import Flask
 from threading import Thread
 
-from keep_alive import run
 import threading
+from keep_alive import run
 
-# Запускаем HTTP-сервер в отдельном потоке
+# запускаем keep_alive сервер в отдельном потоке
 threading.Thread(target=run).start()
+
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
@@ -124,3 +125,6 @@ def process_requests(message):
 if __name__ == "__main__":
     Thread(target=bot.polling, kwargs={"none_stop": True, "interval": 0}).start()
     app.run(host="0.0.0.0", port=10000)
+
+# запускаем телеграм-бот
+bot.polling()
