@@ -9,6 +9,12 @@ from dotenv import load_dotenv
 from flask import Flask
 from threading import Thread
 
+from keep_alive import run
+import threading
+
+# Запускаем HTTP-сервер в отдельном потоке
+threading.Thread(target=run).start()
+
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN)
