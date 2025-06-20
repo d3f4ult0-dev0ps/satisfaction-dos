@@ -9,13 +9,6 @@ from dotenv import load_dotenv
 from flask import Flask
 from threading import Thread
 
-import threading
-from keep_alive import run
-
-# запускаем keep_alive сервер в отдельном потоке
-threading.Thread(target=run).start()
-
-
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN)
@@ -32,12 +25,12 @@ log_file = "sent_log.txt"
 names_log_file = "names_only_log.txt"
 stop_requested = False
 
-# Flask app для /ping
+# Flask для keep_alive
 app = Flask(__name__)
 
-@app.route("/ping")
-def ping():
-    return "✅ Bot is alive!", 200
+@app.route("/")
+def home():
+    return "✅ Bot is alive!"
 
 @bot.message_handler(commands=['start'])
 def welcome(message):
@@ -64,7 +57,6 @@ def process_requests(message):
         count = int(message.text)
         sample = df.sample(n=min(count, len(df)))
 
-        # Очистка логов
         open(log_file, "w", encoding="utf-8").close()
         open(names_log_file, "w", encoding="utf-8").close()
 
@@ -94,11 +86,9 @@ def process_requests(message):
             response = requests.post(form_url, data=form_data)
             status = "✅ Success" if response.status_code in [200, 302] else f"❌ Error {response.status_code}"
 
-            # Полный лог
             with open(log_file, "a", encoding="utf-8") as log:
                 log.write(f"{idx}. {name} | {phone} | {comment}\n")
 
-            # Лог с именами
             with open(names_log_file, "a", encoding="utf-8") as name_log:
                 name_log.write(f"{idx}. {name}\n")
 
@@ -121,10 +111,7 @@ def process_requests(message):
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Error: {e}")
 
-# Запуск и Flask, и бота
+# Запуск Flask и бота
 if __name__ == "__main__":
-    Thread(target=bot.polling, kwargs={"none_stop": True, "interval": 0}).start()
+    Thread(target=bot.polling, kwargs={"none_stop": True}).start()
     app.run(host="0.0.0.0", port=10000)
-
-# запускаем телеграм-бот
-bot.polling()
